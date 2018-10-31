@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <key name="Software">
 	<key name="ConEmu">
-		<key name=".Vanilla" modified="2018-10-31 13:57:42" build="180626">
+		<key name=".Vanilla" modified="2018-10-31 14:01:45" build="180626">
 			<value name="StartType" type="hex" data="02"/>
 			<value name="CmdLine" type="string" data=""/>
 			<value name="StartTasksFile" type="string" data=""/>
@@ -344,7 +344,7 @@
 			<value name="UserScreenTransparent" type="hex" data="00"/>
 			<value name="ColorKeyTransparent" type="hex" data="00"/>
 			<value name="ColorKeyValue" type="dword" data="00010101"/>
-			<value name="Restore2ActiveMon" type="hex" data="00"/>
+			<value name="Restore2ActiveMon" type="hex" data="01"/>
 			<value name="RestoreInactive" type="hex" data="00"/>
 			<value name="QuakeAnimation" type="ulong" data="250"/>
 			<value name="HideCaption" type="hex" data="00"/>
