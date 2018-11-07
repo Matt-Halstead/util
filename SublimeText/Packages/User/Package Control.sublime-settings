@@ -5,6 +5,9 @@
 	],
 	"installed_packages":
 	[
+		"Indent XML",
+		"MarkdownPreview",
+		"Package Control",
 		"Pretty JSON"
 	]
 }
