@@ -4,10 +4,12 @@
 // and creates output to help visualise the dependencies.
 //
 
+private static readonly string[] SupportedProjectExtensions = new[] { ".csproj", ".vbproj", ".rptproj", ".dtproj", ".sqlproj" };
+
+private const string RootSrcFolder = @"E:\dev\src\";
+
 void Main()
 {
-	const string RootSrcFolder = @"E:\dev\src\";
-
 	// Parse solutions and projects from files, resolve refs.
 	var projectsByGuid = ParseProjectFiles(RootSrcFolder, AcceptPath);
 	var solutionsByFile = ParseSolutionFiles(RootSrcFolder, AcceptPath);
@@ -44,31 +46,39 @@ private static void ListProjectsBySolution(List<Solution> solutions)
 		foreach (var project in solution.Projects)
 		{
 			var message = project.IsResolved ? "ok." : project.ResolveError;
-			Console.WriteLine($"  - {project.Name} ({project.ProjectType}) {project.Guid}: {message}");
+			Console.WriteLine($"  - {project.Name} [{project.ProjectType}] {project.Guid}: {message}");
 		}
 	}
 }
 
 private static Dictionary<ProjectReference, Project> ParseProjectFiles(string rootFolder, Func<string, bool> acceptFilterFunc)
 {
-	var projectExtensions = new[] { ".csproj", ".vbproj", ".rptproj", ".dtproj" };
-	
-	var projFiles = Directory.GetFiles(rootFolder, "*.*proj", SearchOption.AllDirectories)
-		.Where(file => projectExtensions.Contains(Path.GetExtension(file ?? string.Empty)?.ToLower() ?? string.Empty))
-		.ToArray();
-
 	Console.WriteLine($"PARSING PROJECTS under folder: {rootFolder}\n");
 
-	var excluded = projFiles.Where(path => !acceptFilterFunc(path)).ToArray();
-	Console.WriteLine($"EXCLUDED {excluded.Length} projects.");
-	foreach (var file in excluded)
+	// Find all supported projects.
+	var projFiles = Directory.GetFiles(rootFolder, "*.*proj", SearchOption.AllDirectories);
+	
+	var unsupportedProjFiles = projFiles
+		.Where(file => !SupportedProjectExtensions.Contains(Path.GetExtension(file ?? string.Empty)?.ToLower() ?? string.Empty))
+		.ToArray();
+	Console.WriteLine($"There were {unsupportedProjFiles.Length} projects with unsupported extensions.");
+	foreach (var file in unsupportedProjFiles)
+	{
+		Console.WriteLine($"  - {file}");
+	}
+	Console.WriteLine();
+	
+	var excludedPaths = projFiles.Where(path => !acceptFilterFunc(path)).ToArray();
+	Console.WriteLine($"EXCLUDED {excludedPaths.Length} projects.");
+	foreach (var file in excludedPaths)
 	{
 		Console.WriteLine($"  - {file}");
 	}
 	Console.WriteLine();
 
 	var projects = projFiles
-		.Except(excluded)
+		.Except(excludedPaths)
+		.Except(unsupportedProjFiles)
 		.Select(projFile => new Project(projFile))
 		.ToArray();
 		
@@ -78,13 +88,13 @@ private static Dictionary<ProjectReference, Project> ParseProjectFiles(string ro
 		?.Name ?? string.Empty)
 		.Length;
 
+	var projectsLookup = new Dictionary<ProjectReference, Project>(new ProjectReferenceEqualityComparer());
+
 	// Group by GUID first to detect collisions.
 	var projectsByGuid = projects
 		.GroupBy(p => p.Guid, StringComparer.OrdinalIgnoreCase)
 		.OrderBy(group => group.Count())
 		.ToArray();
-
-	var projectsLookup = new Dictionary<ProjectReference, Project>(new ProjectReferenceEqualityComparer());
 
 	foreach (var projectGroup in projectsByGuid)
 	{
@@ -142,7 +152,7 @@ private static Dictionary<string, Solution> ParseSolutionFiles(string rootFolder
 
 
 
-public enum ProjectType { Unknown, CSharp, VisualBasic, Report, IntegrationServices };
+public enum ProjectType { Unknown, CSharp, VisualBasic, Report, IntegrationServices, Sql };
 
 class ProjectReferenceEqualityComparer : IEqualityComparer<ProjectReference>
 {
@@ -191,12 +201,16 @@ class ProjectReference
 			case ".dtproj":
 				result = ProjectType.IntegrationServices;
 				break;
+
+			case ".sqlproj":
+				result = ProjectType.Sql;
+				break;
 		}
 
 		return result;
 	}
 
-	public static string ToString(ProjectReference ref1) => $"{ref1?.Guid ?? string.Empty}-{ref1?.Name ?? string.Empty}";
+	public override string ToString() => $"{Guid}-{Name}";
 
 	public string Guid { get; private set; }
 	public string RelativePath { get; private set; }
@@ -224,9 +238,13 @@ class ProjectReference
 				ResolveError = $"UNRESOLVED, name '{Name}' mismatch, expected '{project.Name}'.";
 			}
 		}
+		else if (!SupportedProjectExtensions.Contains(Path.GetExtension(RelativePath)))
+		{
+			ResolveError = $"UNRESOLVED, '{Name}' {Guid} has unsupported type {ProjectType}.";
+		}
 		else
 		{
-			ResolveError = $"UNRESOLVED, guid {Guid} unknown.";
+			ResolveError = $"UNRESOLVED, '{Name}' {Guid} unknown.";
 		}
 
 		return IsResolved;
@@ -263,7 +281,7 @@ class Project
 		var projectRefNodes = doc.Root.Descendants(ns + "ProjectReference");
 		foreach (var projNode in projectRefNodes)
 		{
-			var projectPath = projNode.Attribute(ns + "Include")?.Value ?? string.Empty;
+			var projectPath = projNode.Attribute("Include")?.Value ?? string.Empty;
 			var projectGuid = projNode.Element(ns + "Project")?.Value ?? string.Empty;
 			var projectName = projNode.Element(ns + "Name")?.Value ?? string.Empty;
 
@@ -317,7 +335,8 @@ class Solution
 	{
 		// find projects in sln file matching this form:
 		// Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BinScanLib", "BinScanLib\BinScanLib.csproj", "{B7F354FC-5AFE-4CC6-80E9-D7574429FDEA}"
-		var regex = new Regex(@"Project\(""(\{.+\})""\) = ""(.+)"", ""(.+.csproj|.+.vbproj|.+.rptproj|.+.dtproj)"", ""(\{.+\})""");
+		var extensionsPattern = string.Join("|", SupportedProjectExtensions.Select(ext => $".+{ext}"));
+		var regex = new Regex(@"Project\(""(\{.+\})""\) = ""(.+)"", ""(" + extensionsPattern + @")"", ""(\{.+\})""");
 		
 		foreach (var line in File.ReadAllLines(Filename))
 		{
