@@ -216,7 +216,7 @@ class ProjectReference
 		return result;
 	}
 
-	public override string ToString() => $"{Guid}-{Name}";
+	public override string ToString() => $"{Guid}-{Name}".ToUpper();
 
 	public string Guid { get; private set; }
 	public string RelativePath { get; private set; }
@@ -393,17 +393,17 @@ abstract class Edge
 
 	public abstract XElement ToXml();
 
-	protected XElement CreateEdgeXml(string label, double weight, Color c)
+	protected XElement CreateEdgeXml(double weight, Color color, string label = "")
 	{
 		return new XElement("edge",
 			new XAttribute("id", EdgeId),
 			new XAttribute("source", SourceNode.NodeId),
 			new XAttribute("target", TargetNode.NodeId),
 			new XElement("data", new XAttribute("key", "weight"), weight),
-			new XElement("data", new XAttribute("key", "edgeR"), c.R),
-			new XElement("data", new XAttribute("key", "edgeG"), c.G),
-			new XElement("data", new XAttribute("key", "edgeB"), c.B),
-			string.IsNullOrEmpty(label) ? null : new XElement("data", new XAttribute("key", "edgeLabel"), label));
+			new XElement("data", new XAttribute("key", "r"), color.R),
+			new XElement("data", new XAttribute("key", "g"), color.G),
+			new XElement("data", new XAttribute("key", "b"), color.B),
+			string.IsNullOrEmpty(label) ? null : new XElement("data", new XAttribute("key", "label"), label));
 	}
 }
 
@@ -417,7 +417,7 @@ class SolutionToProjectEdge : Edge
 	public SolutionNode SolutionNode => SourceNode as SolutionNode;
 	public ProjectNode ProjectNode => TargetNode as ProjectNode;
 
-	public override XElement ToXml() => CreateEdgeXml(ProjectNode.Name, 1.0, Color.Yellow);
+	public override XElement ToXml() => CreateEdgeXml(2.0, SolutionNode.Color);
 }
 
 class ProjectToProjectEdge : Edge
@@ -430,7 +430,7 @@ class ProjectToProjectEdge : Edge
 	public ProjectNode SourceProjectNode => SourceNode as ProjectNode;
 	public ProjectNode TargetProjectNode => TargetNode as ProjectNode;
 
-	public override XElement ToXml() => CreateEdgeXml(TargetProjectNode.Name, 1.0, Color.Black);
+	public override XElement ToXml() => CreateEdgeXml(2.0, SourceProjectNode.Color);
 }
 
 ////////////////////////////////////
@@ -443,21 +443,23 @@ abstract class Node
 	private static int _nextNodeId = 0;
 
 	public int NodeId { get; } = _nextNodeId++;
+	public Color Color { get; protected set; } = Color.Black;
 
 	public abstract XElement ToXml();
 
-	protected XElement CreateNodeXml(int nodeId, string label, double size, Color c)
+	protected XElement CreateNodeXml(int nodeId, string label, double size, Color color)
 	{
 		return new XElement("node",
 			new XAttribute("id", nodeId),
 
 			new XElement("data", new XAttribute("key", "label"), label),
 			new XElement("data", new XAttribute("key", "size"), size),
-			new XElement("data", new XAttribute("key", "r"), c.R),
-			new XElement("data", new XAttribute("key", "g"), c.G),
-			new XElement("data", new XAttribute("key", "b"), c.B),
-			new XElement("data", new XAttribute("key", "x"), 0),
-			new XElement("data", new XAttribute("key", "y"), 0));
+			new XElement("data", new XAttribute("key", "r"), color.R),
+			new XElement("data", new XAttribute("key", "g"), color.G),
+			new XElement("data", new XAttribute("key", "b"), color.B)
+			//new XElement("data", new XAttribute("key", "x"), 0),
+			//new XElement("data", new XAttribute("key", "y"), 0)
+			);
 	}}
 
 class ProjectNode : Node
@@ -465,11 +467,12 @@ class ProjectNode : Node
 	public ProjectNode(Project project)
 	{
 		Project = project;
+		Color = IsMissing ? Color.Red : Color.Blue;
 	}
 	
 	public ProjectNode(string missingProjectName)
+		: this(null as Project)
 	{
-		Project = null;
 		MissingProjectName = missingProjectName;
 	}
 
@@ -479,7 +482,7 @@ class ProjectNode : Node
 	
 	public string Name => Project?.Name ?? MissingProjectName ?? "(missing project)";
 
-	public override XElement ToXml() => CreateNodeXml(NodeId, Name, 2.0, IsMissing ? Color.Red : Color.Blue);
+	public override XElement ToXml() => CreateNodeXml(NodeId, Name, 3.0, Color);
 }
 
 class SolutionNode : Node
@@ -487,25 +490,27 @@ class SolutionNode : Node
 	public SolutionNode(Solution solution)
 	{
 		Solution = solution;
+		Color = Color.Green;
 	}
 
 	public Solution Solution { get; }
 
-	public override XElement ToXml() => CreateNodeXml(NodeId, Solution.Name, 3.0, Color.Green);
+	public override XElement ToXml() => CreateNodeXml(NodeId, Solution.Name, 3.0, Color);
 }
 
 private static void CreateNodesAndEdges(List<Solution> solutions, Dictionary<ProjectReference, Project> projectsByRef, out Dictionary<int, Node> nodesById, out Dictionary<int, Edge> edgesById)
 {
 	nodesById = new Dictionary<int, Node>();
 	edgesById = new Dictionary<int, Edge>();
-	
+
+	var uniqueProjectByRef = new Dictionary<UserQuery.ProjectReference, int>(new ProjectReferenceEqualityComparer());
+
 	foreach (var solution in solutions)
 	{
 		var solutionNode = new SolutionNode(solution);
 		nodesById[solutionNode.NodeId] = solutionNode;
 
 		// Create project nodes for each referenced project only once.
-		Dictionary<ProjectReference, int> uniqueProjectByRef = new Dictionary<UserQuery.ProjectReference, int>();
 		AddUniqueProjectRefs(solution.ProjectReferences, projectsByRef, uniqueProjectByRef, nodesById);
 		
 		foreach (var projectRef in solution.ProjectReferences)
@@ -563,14 +568,15 @@ private static void CreateGraphMLFile(Dictionary<int, Node> nodes, Dictionary<in
 		CreateKeyXml("r", "int", "node", "r"),
 		CreateKeyXml("g", "int", "node", "g"),
 		CreateKeyXml("b", "int", "node", "b"),
-		CreateKeyXml("x", "float", "node", "x"),
-		CreateKeyXml("y", "float", "node", "y"),
+		//CreateKeyXml("x", "float", "node", "x"),
+		//CreateKeyXml("y", "float", "node", "y"),
 		CreateKeyXml("size", "float", "node", "size"),
-		CreateKeyXml("edgeLabel", "string", "edge", "edgelabel"),
+		
+		CreateKeyXml("label", "string", "edge", "label"),
 		CreateKeyXml("weight", "double", "edge", "weight"),
-		CreateKeyXml("edgeR", "int", "edge", "r"),
-		CreateKeyXml("edgeG", "int", "edge", "g"),
-		CreateKeyXml("edgeB", "int", "edge", "b"));
+		CreateKeyXml("r", "int", "edge", "r"),
+		CreateKeyXml("g", "int", "edge", "g"),
+		CreateKeyXml("b", "int", "edge", "b"));
 
 	doc.Root.Add(
 		new XElement("graph",
