@@ -37,15 +37,15 @@
 
 void Main()
 {
-	// to define this text, put this url into a browser and save the JSON response to file:   http://trailjira.trailappliances.com:7990/rest/api/1.0/repos
-	//string json = File.ReadAllText(@"E:\work\Database Apps\BitBucket-repos.json");
+	// to define this text, put this url into a browser and save the JSON response to file:   http://trailjira.trailappliances.com:7990/rest/api/1.0/projects
+	string json = File.ReadAllText(@"E:\work\Database Apps\BitBucket-repos.json");
 
 	string bitBucketUrl = @"http://trailjira.trailappliances.com:7990";
 	var repos = new List<RepoInfo>();
 
 	// ensure we get all the projects, default results page size is only 25
 	var args = new[] { Tuple.Create("limit", "500") };
-	string json = GetBasicJsonResponse(bitBucketUrl, $@"/rest/api/1.0/projects", args).Result;
+	//string json = GetBasicJsonResponse(bitBucketUrl, $@"/rest/api/1.0/projects", args).Result;
 	
 	foreach (var project in ParseProjectInfo(json))
 	{
@@ -91,8 +91,8 @@ static Task<string> GetBasicJsonResponse(string baseAddress, string endPoint, pa
 			client.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
 
 			// These need to be copied from those recently used by the browser
-			cookieContainer.Add(client.BaseAddress, new Cookie("_atl_bitbucket_remember_me", "YjczZWU5OWJkMjVkNzNjYTI3MWI1MjFlZDI5Mjk4MWVjOWE4YmY1Yjo5YTkzMjg5YWFmYmFjZTY2MTgyNDU4ZGZjYmZmNDQyNTA5OThlNWI4"));
-			cookieContainer.Add(client.BaseAddress, new Cookie("JSESSIONID", "E0B1361319F1F91E54607EE5C9F2131A"));
+			cookieContainer.Add(client.BaseAddress, new Cookie("_atl_bitbucket_remember_me", "MTdjMmFkN2EwNTViZmQyZWNiZmI2MWE1M2YwNzMyMWEyZDFlZjRlYzo0ODA1ZDY5NmVkMTY2ZTFkZjJjNzQ0N2IzZGI5NjcyMGViNjM5ZWE2"));
+			cookieContainer.Add(client.BaseAddress, new Cookie("JSESSIONID", "019F4C97DCDAAAC3B214A5BB5B2C927C"));
 
 			string query = FormatQueryString(queryArgs);
 			using (HttpResponseMessage response = await client.GetAsync($"{baseAddress}{endPoint}{query}"))
