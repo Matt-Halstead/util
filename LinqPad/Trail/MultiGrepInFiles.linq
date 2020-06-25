@@ -2,15 +2,22 @@
 
 void Main()
 {
+    var pathExceptions = new[] {"\\.build", "\\CustomCommandBars", "\\ExternalFiles", "\\Scripts", "\\Indexes"};
     // All the files to be searched
-    var files = Directory.EnumerateFiles(@"E:\dev\DevOps\AccessApps\source\DELIVERY\DelMan", "*.*", SearchOption.AllDirectories)
+    var files = Directory.EnumerateFiles(@"E:\dev\DevOps\AccessApps\source", "*.*", SearchOption.AllDirectories)
+        .Where(path => !pathExceptions.Any(pe => path.Contains(pe)))
         .ToArray();
 
     // All the target strings to be searched for
-    var reportFiles = Directory.EnumerateFiles(@"E:\dev\DevOps\AccessApps\source\DELIVERY\DelMan\Reports");
-    var searchTargets = reportFiles.Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
+    //var delIssueFiles = Directory.EnumerateFiles(@"E:\dev\Archive\ArchivedAccessApps\DELIVERY\DelIssue\Queries");
+    //var invIssueFiles = Directory.EnumerateFiles(@"E:\dev\Archive\ArchivedAccessApps\IT\InvIssue\Queries");
+    var builDelFiles = Directory.EnumerateFiles(@"E:\dev\Archive\ArchivedAccessApps\BUILDER\BuilDel\Queries");
+//    var searchTargets = builDelFiles
+//        .Select(f => Path.GetFileNameWithoutExtension(f))
+//        .Distinct()
+//        .ToArray();
     
-    // var searchTargets = new[] { "one", "two" };
+    var searchTargets = new[] { "qprBuilD_DateSpCust" };
    
    
     var hitsByTarget = new Dictionary<string, List<string>>();
@@ -23,7 +30,7 @@ void Main()
             hitsByFile[file] = new List<string>();
         }
         
-        SetPreambleLine($"\n{Path.GetFileName(file)}");
+        SetPreambleLine($"\n{file}");
 
         var lines = File.ReadAllLines(file);        
         int lineNumber = 1;
@@ -50,26 +57,28 @@ void Main()
             lineNumber++;
         }
     }
+    
+    preamble.Clear();
 
-    SetPreambleLine("\nTargets not found in any file:");
+    WriteLine("\nTargets not found in any file:");
     hitsByTarget.Where(pair => pair.Value.Count == 0)
         .Select(pair => pair.Key)
         .ToList()
         .ForEach(key => WriteLine($"    {key}"));
 
-    SetPreambleLine("\nFiles containing no targets:");
-    hitsByFile.Where(pair => pair.Value.Count == 0)
-        .Select(pair => pair.Key)
-        .ToList()
-        .ForEach(key => WriteLine($"    {key}"));
+//    WriteLine("\nFiles containing no targets:");
+//    hitsByFile.Where(pair => pair.Value.Count == 0)
+//        .Select(pair => pair.Key)
+//        .ToList()
+//        .ForEach(key => WriteLine($"    {key}"));
 
-    SetPreambleLine("\nTargets found in at least one file:");
+    WriteLine("\nTargets found in at least one file:");
     hitsByTarget.Where(pair => pair.Value.Count > 0)
         .Select(pair => pair.Key)
         .ToList()
         .ForEach(key => WriteLine($"    {key}"));
 
-    SetPreambleLine("\nFiles containing at least one target:");
+    WriteLine("\nFiles containing at least one target:");
     hitsByFile.Where(pair => pair.Value.Count > 0)
         .Select(pair => pair.Key)
         .ToList()
@@ -88,13 +97,17 @@ private static void SetPreambleLine(string line)
     {
         preamble.Clear();
         preamble.Add(line);
-        preamble.Add(new String(Enumerable.Repeat('-', line.Length).ToArray()));
     }
+}
+
+private static string ToTitleLine(string line)
+{
+    return $"{line}\n{new String('-', line.Length)}";
 }
 
 private static void WriteLine(string line)
 {
-    preamble.ForEach(p => Console.WriteLine(p));
+    preamble.ForEach(p => Console.WriteLine(ToTitleLine(p)));
     preamble.Clear();
     Console.WriteLine(line);
 }
